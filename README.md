@@ -58,29 +58,6 @@ With the stolen admin credentials, the attacker can access the protected flag bu
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Attack Path
-
-```
-dev_user (limited)
-    │
-    ├── 1. Enumerate permissions
-    │
-    ├── 2. Discover target EC2 with admin role
-    │
-    ├── 3. Stop the target instance
-    │
-    ├── 4. Modify user data with credential exfiltration script
-    │
-    ├── 5. Start the instance
-    │
-    ├── 6. Wait for boot, retrieve creds from S3
-    │
-    └── 7. Use admin credentials to get flag
-            │
-            ▼
-    Flag Retrieved! 🚩
-```
-
 ## Resources Created
 
 | Resource | Description |
@@ -92,17 +69,6 @@ dev_user (limited)
 | IAM User | dev_user with limited EC2 permissions |
 | IAM Role | Highly privileged EC2 role |
 | VPC Endpoint | S3 gateway endpoint for private subnet |
-
-## Permissions Granted to dev_user
-
-- `ec2:Describe*` - View EC2 resources
-- `ec2:StopInstances` - Stop the target EC2
-- `ec2:StartInstances` - Start the target EC2
-- `ec2:ModifyInstanceAttribute` (userData only) - Modify user data
-- `s3:GetObject`, `s3:ListBucket` - Read from exfil bucket
-- `iam:Get*`, `iam:List*` - Enumerate IAM
-- `ec2:RunInstances` - Launch EC2 in public subnet (optional path)
-- `ec2:CreateKeyPair` - Create SSH key pairs
 
 ## Deployment
 
@@ -128,26 +94,3 @@ terraform output -raw start_txt
 ```bash
 terraform destroy -auto-approve
 ```
-
-## Key Vulnerabilities Demonstrated
-
-1. **Overly Permissive EC2 Permissions** - Allowing user data modification enables code injection
-2. **IMDSv1 Enabled** - Credentials can be retrieved without a session token
-3. **Highly Privileged EC2 Role** - AdministratorAccess attached to EC2
-4. **Lack of Monitoring** - No CloudTrail alerts on ModifyInstanceAttribute
-
-## Important Technical Note
-
-**User data execution behavior:**
-- Regular `#!/bin/bash` user data only runs on the **first boot** of an instance
-- After stop/start, cloud-init won't re-run regular scripts (it caches completion state)
-- To run on every boot, use `#cloud-boothook` at the start of the script
-- This is critical knowledge for exploiting this attack vector!
-
-## Mitigations
-
-1. **Require IMDSv2** - Prevents simple credential theft
-2. **Restrict ModifyInstanceAttribute** - Don't allow user data changes
-3. **Use Least Privilege** - EC2 roles should have minimal permissions
-4. **Monitor with CloudTrail** - Alert on suspicious EC2 attribute modifications
-5. **Use AWS Config** - Detect changes to EC2 configurations
